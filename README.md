@@ -90,7 +90,7 @@ There are three ways to do it:
    })))
    ```
 
-The model has to reply with JSON in this shape: `{"verdict":"approve|disapprove","findings":[{"page","rule_id","law","article","category","severity","excerpt","reason"}]}`. The parser ignores code fences and extra text around the JSON.
+The model has to reply with JSON in this shape: `{"verdict":"approve|disapprove","findings":[{"page","rule_id","law","article","category","severity","excerpt","reason"}]}`. The parser ignores code fences and extra text around the JSON. If a reply still can't be read, the CLI sends the reply and the parse error back and asks again; `--retries N` sets how many times (default 1, `0` turns it off).
 
 ## Layout
 

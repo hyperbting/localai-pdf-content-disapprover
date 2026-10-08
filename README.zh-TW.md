@@ -34,7 +34,7 @@ go build -o disapprover .        # Windows 上為 disapprover.exe
 
 `extract` 與 `review` 共用的儲存參數：`-o FILE`、`-c/--commit`、`--message`、`--git-init`。
 
-`review` 專用參數：`-r/--rules`、`--laws`、`--pass-examples`、`--reason-format`、`--max-chars N`、`--fail-on-disapprove`、`-q/--quiet`。
+`review` 專用參數：`-r/--rules`、`--laws`、`--pass-examples`、`--reason-format`、`--max-chars N`、`--retries N`、`--fail-on-disapprove`、`-q/--quiet`。
 
 ## 連接本地 AI
 
@@ -133,7 +133,7 @@ JSON 報告欄位：`file`、`sha256`、`pages`、`provider`、`model`、`verdic
    })))
    ```
 
-模型必須回覆以下格式的 JSON：`{"verdict":"approve|disapprove","findings":[{"page","rule_id","law","article","category","severity","excerpt","reason"}]}`。JSON 前後的 code fence 或多餘文字會被忽略。
+模型必須回覆以下格式的 JSON：`{"verdict":"approve|disapprove","findings":[{"page","rule_id","law","article","category","severity","excerpt","reason"}]}`。JSON 前後的 code fence 或多餘文字會被忽略。若回覆仍無法解析，會把該回覆與錯誤訊息送回模型並重問；次數由 `--retries N` 設定（預設 1，`0` 為關閉）。
 
 ## 專案結構
 
@@ -154,7 +154,7 @@ internal/store/      寫入檔案與 git commit
 | `connection refused` | 啟動伺服器；檢查 `-e` 與 `-p` 是否正確 |
 | `404 Not Found` | Provider 與伺服器風格不符：Ollama 用 `-p ollama`，LocalAI、LM Studio 用 `-p openai` |
 | `has no extractable text` | 掃描型 PDF，請先做 OCR（例如 `ocrmypdf`） |
-| `model reply has no JSON object` | 換用更能遵循指示的模型，或調低 `--max-chars` |
+| `model reply has no JSON object` | 預設會帶著錯誤訊息重問一次；可提高 `--retries`、換用更能遵循指示的模型，或調低 `--max-chars` |
 | `not inside a git repository` | 加上 `--git-init`，或存到儲存庫內 |
 | `Please tell me who you are` | 設定 `git config --global user.name` 與 `user.email` |
 

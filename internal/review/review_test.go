@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -47,6 +48,66 @@ func TestDisapproveWithoutFindingsGetsReason(t *testing.T) {
 	f := rep.Findings[0]
 	if f.Page != 4 || !strings.Contains(f.Message, "without citing") {
 		t.Errorf("finding: %+v", f)
+	}
+}
+
+func TestRetryOnInvalidReply(t *testing.T) {
+	doc := &pdftext.Document{Pages: []pdftext.Page{{Number: 1, Text: "hello"}}}
+	var requests [][]ai.Message
+	client := ai.ClientFunc(func(_ context.Context, req ai.Request) (string, error) {
+		requests = append(requests, req.Messages)
+		if len(requests) == 1 {
+			return "Sure, the document looks fine to me.", nil
+		}
+		return `{"verdict":"approve","findings":[]}`, nil
+	})
+	var retried []int
+	rv := &Reviewer{Client: client, Retries: 1, OnRetry: func(_, _, attempt int, _ error) { retried = append(retried, attempt) }}
+	rep, err := rv.Review(context.Background(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Verdict != Approve || len(requests) != 2 || len(retried) != 1 {
+		t.Fatalf("verdict %s, %d requests, retries %v", rep.Verdict, len(requests), retried)
+	}
+	// The retry shows the model its bad reply and the parse error.
+	second := requests[1]
+	if len(second) != 4 || second[2].Role != "assistant" || second[2].Content != "Sure, the document looks fine to me." ||
+		!strings.Contains(second[3].Content, "no JSON object") {
+		t.Errorf("retry messages: %+v", second)
+	}
+}
+
+func TestRetryGivesUp(t *testing.T) {
+	doc := &pdftext.Document{Pages: []pdftext.Page{{Number: 3, Text: "hello"}}}
+	calls := 0
+	client := ai.ClientFunc(func(context.Context, ai.Request) (string, error) {
+		calls++
+		return "not json", nil
+	})
+	_, err := (&Reviewer{Client: client, Retries: 2}).Review(context.Background(), doc)
+	if err == nil || !strings.Contains(err.Error(), "after 3 attempts") || !strings.Contains(err.Error(), "pages 3-3") {
+		t.Fatalf("err = %v", err)
+	}
+	if calls != 3 {
+		t.Errorf("calls = %d, want 3", calls)
+	}
+
+	calls = 0
+	if _, err := (&Reviewer{Client: client}).Review(context.Background(), doc); err == nil || calls != 1 {
+		t.Errorf("Retries 0: err = %v, calls = %d", err, calls)
+	}
+}
+
+func TestTransportErrorNotRetried(t *testing.T) {
+	doc := &pdftext.Document{Pages: []pdftext.Page{{Number: 1, Text: "hello"}}}
+	calls := 0
+	client := ai.ClientFunc(func(context.Context, ai.Request) (string, error) {
+		calls++
+		return "", errors.New("connection refused")
+	})
+	if _, err := (&Reviewer{Client: client, Retries: 3}).Review(context.Background(), doc); err == nil || calls != 1 {
+		t.Fatalf("err = %v, calls = %d", err, calls)
 	}
 }
 

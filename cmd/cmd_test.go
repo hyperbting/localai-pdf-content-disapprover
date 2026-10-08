@@ -157,6 +157,40 @@ func TestReviewWithLawsExamplesAndReasonFormat(t *testing.T) {
 	}
 }
 
+func TestReviewRetriesFlag(t *testing.T) {
+	pdf := writePDF(t, t.TempDir(), "Quarterly results are good")
+	calls := 0
+	client := ai.ClientFunc(func(context.Context, ai.Request) (string, error) {
+		calls++
+		if calls == 1 {
+			return "I think it is fine.", nil
+		}
+		return `{"verdict":"approve","findings":[]}`, nil
+	})
+	for _, c := range []struct {
+		args    []string
+		wantErr bool
+		retried bool
+	}{
+		{nil, false, true}, // default --retries 1
+		{[]string{"--retries", "0"}, true, false},
+	} {
+		calls = 0
+		root := NewRootCmd(WithClient(client))
+		var out bytes.Buffer
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs(append([]string{"review", pdf}, c.args...))
+		err := root.ExecuteContext(context.Background())
+		if (err != nil) != c.wantErr {
+			t.Fatalf("%v: err = %v\n%s", c.args, err, out.String())
+		}
+		if got := strings.Contains(out.String(), "invalid reply, retrying (1/1)"); got != c.retried {
+			t.Errorf("%v: retry message shown = %v\n%s", c.args, got, out.String())
+		}
+	}
+}
+
 func TestProvidersDetect(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/models" {

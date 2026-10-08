@@ -79,6 +79,11 @@ type Reviewer struct {
 	MaxChars int // max characters of document text per model call
 	// Progress, if set, is called before each chunk is sent.
 	Progress func(chunk, total int, firstPage, lastPage int)
+	// Retries is how many more times to ask when a reply is not valid verdict
+	// JSON. Each retry shows the model its reply and the parse error.
+	Retries int
+	// OnRetry, if set, is called before each retry.
+	OnRetry func(firstPage, lastPage, attempt int, err error)
 }
 
 type chunk struct {
@@ -109,17 +114,7 @@ func (rv *Reviewer) Review(ctx context.Context, doc *pdftext.Document) (*Report,
 		if rv.Progress != nil {
 			rv.Progress(i+1, len(chunks), c.first, c.last)
 		}
-		reply, err := rv.Client.Chat(ctx, ai.Request{
-			JSON: true,
-			Messages: []ai.Message{
-				{Role: "system", Content: systemPrompt},
-				{Role: "user", Content: fmt.Sprintf("POLICY:\n%s\n\nDOCUMENT (pages %d-%d):\n%s", policyText, c.first, c.last, c.text)},
-			},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("pages %d-%d: %w", c.first, c.last, err)
-		}
-		v, err := ParseVerdict(reply)
+		v, err := rv.ask(ctx, policyText, c)
 		if err != nil {
 			return nil, fmt.Errorf("pages %d-%d: %w", c.first, c.last, err)
 		}
@@ -139,6 +134,39 @@ func (rv *Reviewer) Review(ctx context.Context, doc *pdftext.Document) (*Report,
 		}
 	}
 	return rep, nil
+}
+
+// ask gets a verdict for one chunk. When the reply cannot be parsed, it sends
+// the reply and the error back and asks again, up to rv.Retries times.
+// Transport errors are not retried.
+func (rv *Reviewer) ask(ctx context.Context, policyText string, c chunk) (*verdict, error) {
+	msgs := []ai.Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: fmt.Sprintf("POLICY:\n%s\n\nDOCUMENT (pages %d-%d):\n%s", policyText, c.first, c.last, c.text)},
+	}
+	for attempt := 0; ; attempt++ {
+		reply, err := rv.Client.Chat(ctx, ai.Request{JSON: true, Messages: msgs})
+		if err != nil {
+			return nil, err
+		}
+		v, perr := ParseVerdict(reply)
+		if perr == nil {
+			return v, nil
+		}
+		if attempt >= rv.Retries {
+			if attempt > 0 {
+				return nil, fmt.Errorf("%w (after %d attempts)", perr, attempt+1)
+			}
+			return nil, perr
+		}
+		if rv.OnRetry != nil {
+			rv.OnRetry(c.first, c.last, attempt+1, perr)
+		}
+		msgs = append(msgs,
+			ai.Message{Role: "assistant", Content: reply},
+			ai.Message{Role: "user", Content: fmt.Sprintf("Your reply could not be used: %v\nReply again with ONLY the JSON object in the required shape, no other text.", perr)},
+		)
+	}
 }
 
 func split(pages []pdftext.Page, maxChars int) []chunk {

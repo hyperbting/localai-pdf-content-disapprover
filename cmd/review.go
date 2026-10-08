@@ -23,6 +23,7 @@ func newReviewCmd(a *app) *cobra.Command {
 		save       saveFlags
 		pf         review.PolicyFiles
 		maxChars   int
+		retries    int
 		failOnDeny bool
 		quiet      bool
 	)
@@ -67,10 +68,13 @@ func newReviewCmd(a *app) *cobra.Command {
 				return fmt.Errorf("%s has no extractable text (scanned PDF? run OCR first)", args[0])
 			}
 
-			rv := &review.Reviewer{Client: client, Policy: policy, MaxChars: maxChars}
+			rv := &review.Reviewer{Client: client, Policy: policy, MaxChars: maxChars, Retries: retries}
 			if !quiet {
 				rv.Progress = func(i, n, first, last int) {
 					fmt.Fprintf(c.ErrOrStderr(), "reviewing chunk %d/%d (pages %d-%d)...\n", i, n, first, last)
+				}
+				rv.OnRetry = func(first, last, attempt int, err error) {
+					fmt.Fprintf(c.ErrOrStderr(), "pages %d-%d: invalid reply, retrying (%d/%d): %v\n", first, last, attempt, retries, err)
 				}
 			}
 			rep, err := rv.Review(c.Context(), doc)
@@ -105,6 +109,7 @@ func newReviewCmd(a *app) *cobra.Command {
 	f.StringArrayVar(&pf.PassExamples, "pass-examples", nil, "txt file of content that should be approved, to calibrate the model (repeatable)")
 	f.StringVar(&pf.ReasonFormat, "reason-format", "", "txt template for each finding's message, placeholders: {page} {rule_id} {law} {article} {citation} {category} {severity} {excerpt} {reason}")
 	f.IntVar(&maxChars, "max-chars", 8000, "max characters of PDF text per AI request")
+	f.IntVar(&retries, "retries", 1, "times to ask again, with the parse error, when a reply is not valid verdict JSON")
 	f.BoolVar(&failOnDeny, "fail-on-disapprove", false, "exit with status 2 when the verdict is disapprove (for CI)")
 	f.BoolVarP(&quiet, "quiet", "q", false, "suppress progress output")
 	save.register(c, "save the JSON report to this file")
