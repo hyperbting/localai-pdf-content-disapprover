@@ -14,13 +14,18 @@ go build -o disapprover .
 |---|---|
 | `extract <pdf>` | Prints the PDF's text, or saves it with `-o`. Add `--json` for per-page JSON with the file's SHA-256. |
 | `review <pdf>` | Sends the text to the AI in page-aligned chunks. The document is disapproved if any chunk is disapproved. |
-| `providers` | Lists the registered AI backends. |
+| `providers` | Lists the registered AI backends. `--detect` reports which local server `auto` would use. |
 
 Save and commit flags (on `extract` and `review`): `-o FILE`, `-c/--commit`, `--message`, `--git-init`.
 
 ```sh
+# Auto-detect (the default): checks --endpoint if given, otherwise Ollama on :11434,
+# then OpenAI-compatible servers on :8080, :1234 and :8000. Without -m it uses the first model the server lists.
+disapprover review contract.pdf
+disapprover providers --detect
+
 # Ollama
-disapprover review contract.pdf -m llama3.1
+disapprover review contract.pdf -p ollama -m llama3.1
 
 # Any OpenAI-compatible server (LocalAI, LM Studio, llama.cpp server, vLLM)
 disapprover review contract.pdf -p openai -e http://localhost:1234/v1 -m qwen2.5-7b-instruct
@@ -42,6 +47,28 @@ You can also set the global flags with environment variables: `DISAPPROVER_PROVI
 
 Exit codes: `0` means OK, `1` means an error, and `2` means disapproved (only with `--fail-on-disapprove`).
 
+## Rules, laws and approved examples
+
+The model judges the document against local UTF-8 text files. Each flag can be repeated.
+
+| Flag | File contains | Effect |
+|---|---|---|
+| `-r, --rules` | House rules | Content that breaks a rule is disapproved |
+| `--laws` | Text of laws or regulations | Content that is against a law is disapproved, and the finding cites the law and article |
+| `--pass-examples` | Content that should pass | Calibrates the model so similar content is not disapproved |
+| `--reason-format` | A one-line template | How each finding's reason is written |
+
+If you give no `--rules` and no `--laws`, built-in rules are used (personal data, confidential markings, hate, sexual content, illegal instructions).
+
+Every finding has `page`, `rule_id`, `law`, `article`, `category`, `severity`, `excerpt` and `reason`, plus `message`, which is the finding rendered with the template. The template placeholders are `{page} {rule_id} {law} {article} {citation} {category} {severity} {excerpt} {reason}`. `{citation}` is "law article", or the `rule_id` when there is no law. The default template is `p.{page} [{severity}] {citation}: {reason}`. If the model disapproves without giving a finding, a finding marked "unspecified" is added so a disapproval always shows a reason.
+
+```sh
+# reason.txt:  違反{law}{article}：{reason}（第{page}頁）
+disapprover review ad.pdf --laws pdpa.txt --laws fair-trade.txt --pass-examples ok-ads.txt --reason-format reason.txt -o reviews/ad.json --commit
+```
+
+The report's `policy` field lists each file used, with its SHA-256, so a committed report shows exactly which version of each law file produced the verdict. The policy is sent again with every chunk; if it is over 24,000 characters, the CLI warns you to check that it fits the model's context window.
+
 ## Plugging in your own AI
 
 There are three ways to do it:
@@ -60,16 +87,16 @@ There are three ways to do it:
    })))
    ```
 
-The model has to reply with JSON in this shape: `{"verdict":"approve|disapprove","findings":[{"page","category","severity","excerpt","reason"}]}`. The parser ignores code fences and extra text around the JSON.
+The model has to reply with JSON in this shape: `{"verdict":"approve|disapprove","findings":[{"page","rule_id","law","article","category","severity","excerpt","reason"}]}`. The parser ignores code fences and extra text around the JSON.
 
 ## Layout
 
 ```
 main.go
 cmd/                 Cobra commands (root, extract, review, providers, save/commit flags)
-pkg/ai/              Client interface, registry, ollama / openai / exec providers
+pkg/ai/              Client interface, registry, auto / ollama / openai / exec providers
 internal/pdftext/    PDF loading and per-page text extraction
-internal/review/     chunking, prompt, verdict parsing and combining
+internal/review/     policy (rules, laws, examples, reason format), chunking, prompt, verdict parsing
 internal/store/      writing files and git commits
 ```
 

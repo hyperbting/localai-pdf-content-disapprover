@@ -32,6 +32,24 @@ func TestParseVerdict(t *testing.T) {
 	}
 }
 
+func TestDisapproveWithoutFindingsGetsReason(t *testing.T) {
+	doc := &pdftext.Document{Pages: []pdftext.Page{{Number: 4, Text: "x"}}}
+	client := ai.ClientFunc(func(context.Context, ai.Request) (string, error) {
+		return `{"verdict":"disapprove","findings":[]}`, nil
+	})
+	rep, err := (&Reviewer{Client: client}).Review(context.Background(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Verdict != Disapprove || len(rep.Findings) != 1 {
+		t.Fatalf("report: %+v", rep)
+	}
+	f := rep.Findings[0]
+	if f.Page != 4 || !strings.Contains(f.Message, "without citing") {
+		t.Errorf("finding: %+v", f)
+	}
+}
+
 func TestReviewChunksAndAggregates(t *testing.T) {
 	doc := &pdftext.Document{Pages: []pdftext.Page{
 		{Number: 1, Text: strings.Repeat("a", 50)},

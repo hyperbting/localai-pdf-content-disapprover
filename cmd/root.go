@@ -35,7 +35,11 @@ func (a *app) client() (ai.Client, error) {
 	if a.injected != nil {
 		return a.injected, nil
 	}
-	return ai.New(a.provider, ai.Config{
+	return ai.New(a.provider, a.config())
+}
+
+func (a *app) config() ai.Config {
+	return ai.Config{
 		Endpoint: a.endpoint,
 		Model:    a.model,
 		APIKey:   a.apiKey,
@@ -43,7 +47,7 @@ func (a *app) client() (ai.Client, error) {
 		Timeout:  a.timeout,
 
 		ReasoningEffort: a.effort,
-	})
+	}
 }
 
 // NewRootCmd builds the CLI. Embed it in your own main with options to inject
@@ -64,6 +68,8 @@ and reports whether the content is approved or disapproved against your rules.
 Results can be saved and committed to git.
 
 AI providers:
+  auto    (default) detect a running server: --endpoint if given, else Ollama :11434,
+          then OpenAI-compatible :8080, :1234, :8000; uses the first listed model if --model is empty
   ollama  Ollama native API          (default endpoint http://localhost:11434)
   openai  any OpenAI-compatible API  (LocalAI, LM Studio, llama.cpp, vLLM, Strata; default http://localhost:8080/v1)
   exec    any command: prompt on stdin, reply on stdout
@@ -75,7 +81,7 @@ DISAPPROVER_MODEL, DISAPPROVER_API_KEY, DISAPPROVER_EXEC, DISAPPROVER_REASONING_
 	}
 
 	pf := root.PersistentFlags()
-	pf.StringVarP(&a.provider, "provider", "p", env("DISAPPROVER_PROVIDER", "ollama"), "AI provider: "+strings.Join(ai.Providers(), "|"))
+	pf.StringVarP(&a.provider, "provider", "p", env("DISAPPROVER_PROVIDER", "auto"), "AI provider: "+strings.Join(ai.Providers(), "|"))
 	pf.StringVarP(&a.endpoint, "endpoint", "e", env("DISAPPROVER_ENDPOINT", ""), "AI server base URL (provider default if empty)")
 	pf.StringVarP(&a.model, "model", "m", env("DISAPPROVER_MODEL", ""), "model name")
 	pf.StringVar(&a.apiKey, "api-key", env("DISAPPROVER_API_KEY", ""), "bearer token for the AI server, if required")
@@ -83,7 +89,7 @@ DISAPPROVER_MODEL, DISAPPROVER_API_KEY, DISAPPROVER_EXEC, DISAPPROVER_REASONING_
 	pf.DurationVar(&a.timeout, "timeout", 5*time.Minute, "per-request AI timeout")
 	pf.StringVar(&a.effort, "reasoning-effort", env("DISAPPROVER_REASONING_EFFORT", ""), "reasoning_effort for openai-compatible servers that support it (none|low|medium|high)")
 
-	root.AddCommand(newExtractCmd(a), newReviewCmd(a), newProvidersCmd())
+	root.AddCommand(newExtractCmd(a), newReviewCmd(a), newProvidersCmd(a))
 	return root
 }
 
