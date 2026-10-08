@@ -27,6 +27,7 @@ type app struct {
 	apiKey   string
 	execCmd  string
 	timeout  time.Duration
+	effort   string
 }
 
 // client returns the injected client or builds one from flags.
@@ -40,6 +41,8 @@ func (a *app) client() (ai.Client, error) {
 		APIKey:   a.apiKey,
 		Command:  strings.Fields(a.execCmd),
 		Timeout:  a.timeout,
+
+		ReasoningEffort: a.effort,
 	})
 }
 
@@ -62,11 +65,11 @@ Results can be saved and committed to git.
 
 AI providers:
   ollama  Ollama native API          (default endpoint http://localhost:11434)
-  openai  any OpenAI-compatible API  (LocalAI, LM Studio, llama.cpp, vLLM; default http://localhost:8080/v1)
+  openai  any OpenAI-compatible API  (LocalAI, LM Studio, llama.cpp, vLLM, Strata; default http://localhost:8080/v1)
   exec    any command: prompt on stdin, reply on stdout
 
 Flags can also be set with env vars: DISAPPROVER_PROVIDER, DISAPPROVER_ENDPOINT,
-DISAPPROVER_MODEL, DISAPPROVER_API_KEY, DISAPPROVER_EXEC.`,
+DISAPPROVER_MODEL, DISAPPROVER_API_KEY, DISAPPROVER_EXEC, DISAPPROVER_REASONING_EFFORT.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -78,6 +81,7 @@ DISAPPROVER_MODEL, DISAPPROVER_API_KEY, DISAPPROVER_EXEC.`,
 	pf.StringVar(&a.apiKey, "api-key", env("DISAPPROVER_API_KEY", ""), "bearer token for the AI server, if required")
 	pf.StringVar(&a.execCmd, "exec", env("DISAPPROVER_EXEC", ""), "command line for the exec provider")
 	pf.DurationVar(&a.timeout, "timeout", 5*time.Minute, "per-request AI timeout")
+	pf.StringVar(&a.effort, "reasoning-effort", env("DISAPPROVER_REASONING_EFFORT", ""), "reasoning_effort for openai-compatible servers that support it (none|low|medium|high)")
 
 	root.AddCommand(newExtractCmd(a), newReviewCmd(a), newProvidersCmd())
 	return root

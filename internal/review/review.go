@@ -147,6 +147,11 @@ type verdict struct {
 // ParseVerdict extracts the JSON object from a model reply, tolerating code
 // fences or chatter around it.
 func ParseVerdict(reply string) (*verdict, error) {
+	// Reasoning models (Qwen3, DeepSeek-R1, Strata) may leak their thinking
+	// into the content; drop everything up to the last closing tag.
+	if i := strings.LastIndex(reply, "</think>"); i >= 0 {
+		reply = reply[i+len("</think>"):]
+	}
 	start, end := strings.Index(reply, "{"), strings.LastIndex(reply, "}")
 	if start < 0 || end <= start {
 		return nil, fmt.Errorf("model reply has no JSON object: %q", truncate(reply, 200))
@@ -173,5 +178,5 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "â€¦"
+	return s[:n] + "..."
 }

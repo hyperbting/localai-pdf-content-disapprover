@@ -10,12 +10,13 @@ import (
 func init() { Register("openai", NewOpenAI) }
 
 // OpenAI targets any OpenAI-compatible server: LocalAI, LM Studio,
-// llama.cpp server, vLLM, Jan, etc. Endpoint is the base URL including /v1.
+// llama.cpp server, vLLM, Jan, Strata, etc. Endpoint is the base URL including /v1.
 type OpenAI struct {
-	endpoint string
-	model    string
-	apiKey   string
-	http     *http.Client
+	endpoint        string
+	model           string
+	apiKey          string
+	reasoningEffort string
+	http            *http.Client
 }
 
 func NewOpenAI(cfg Config) (Client, error) {
@@ -26,7 +27,13 @@ func NewOpenAI(cfg Config) (Client, error) {
 	if ep == "" {
 		ep = "http://localhost:8080/v1" // LocalAI default
 	}
-	return &OpenAI{endpoint: strings.TrimRight(ep, "/"), model: cfg.Model, apiKey: cfg.APIKey, http: httpClient(cfg.Timeout)}, nil
+	return &OpenAI{
+		endpoint:        strings.TrimRight(ep, "/"),
+		model:           cfg.Model,
+		apiKey:          cfg.APIKey,
+		reasoningEffort: cfg.ReasoningEffort,
+		http:            httpClient(cfg.Timeout),
+	}, nil
 }
 
 func (o *OpenAI) Chat(ctx context.Context, req Request) (string, error) {
@@ -37,6 +44,9 @@ func (o *OpenAI) Chat(ctx context.Context, req Request) (string, error) {
 		"messages":    req.Messages,
 		"temperature": req.Temperature,
 		"stream":      false,
+	}
+	if o.reasoningEffort != "" {
+		in["reasoning_effort"] = o.reasoningEffort
 	}
 	var out struct {
 		Choices []struct {

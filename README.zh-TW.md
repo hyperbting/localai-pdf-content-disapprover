@@ -43,7 +43,7 @@ go build -o disapprover .        # Windows 上為 disapprover.exe
 | Provider | 適用對象 | 預設端點 |
 |---|---|---|
 | `ollama` | Ollama（`/api/chat`） | `http://localhost:11434` |
-| `openai` | LocalAI、LM Studio、llama.cpp server、vLLM、Ollama 的 `/v1` | `http://localhost:8080/v1` |
+| `openai` | LocalAI、LM Studio、llama.cpp server、vLLM、Strata、Ollama 的 `/v1` | `http://localhost:8080/v1` |
 | `exec` | 任何程式：提示詞從 stdin 傳入，回覆從 stdout 讀取 | 無 |
 
 ```sh
@@ -53,6 +53,10 @@ disapprover review contract.pdf -m llama3.1
 # OpenAI 相容：端點為以 /v1 結尾的基本 URL
 disapprover review contract.pdf -p openai -e http://localhost:1234/v1 -m qwen2.5-7b-instruct
 
+# Strata（OpenAI 相容，位於 127.0.0.1:8080，任何模型名稱皆可）
+# 低推理強度比 Strata 預設的 high 快很多
+disapprover review contract.pdf -p openai -e http://127.0.0.1:8080/v1 -m qwen --reasoning-effort low
+
 # 任何程式
 disapprover review contract.pdf -p exec --exec "python my_model.py"
 
@@ -60,7 +64,9 @@ disapprover review contract.pdf -p exec --exec "python my_model.py"
 disapprover review contract.pdf -m llama3.1 -r rules.txt -o reviews/contract.json --commit --fail-on-disapprove
 ```
 
-全域參數也可以用環境變數設定：`DISAPPROVER_PROVIDER`、`DISAPPROVER_ENDPOINT`、`DISAPPROVER_MODEL`、`DISAPPROVER_API_KEY`、`DISAPPROVER_EXEC`。`--timeout` 預設每次 AI 請求 5 分鐘。
+全域參數也可以用環境變數設定：`DISAPPROVER_PROVIDER`、`DISAPPROVER_ENDPOINT`、`DISAPPROVER_MODEL`、`DISAPPROVER_API_KEY`、`DISAPPROVER_EXEC`、`DISAPPROVER_REASONING_EFFORT`。
+
+`--reasoning-effort`（none、low、medium、high）會以 `reasoning_effort` 送給支援它的 OpenAI 相容伺服器；未設定時沿用伺服器預設值。回覆中若混入 `</think>` 思考內容，會在解析 JSON 前移除。`--timeout` 預設每次 AI 請求 5 分鐘。
 
 結束狀態碼：`0` 成功，`1` 錯誤，`2` 駁回（僅在加上 `--fail-on-disapprove` 時）。
 

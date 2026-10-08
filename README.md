@@ -25,6 +25,10 @@ disapprover review contract.pdf -m llama3.1
 # Any OpenAI-compatible server (LocalAI, LM Studio, llama.cpp server, vLLM)
 disapprover review contract.pdf -p openai -e http://localhost:1234/v1 -m qwen2.5-7b-instruct
 
+# Strata (OpenAI-compatible on 127.0.0.1:8080, accepts any model name).
+# Low reasoning effort is much faster than Strata's default of high.
+disapprover review contract.pdf -p openai -e http://127.0.0.1:8080/v1 -m qwen --reasoning-effort low
+
 # Any program: the prompt goes in on stdin and the reply comes out on stdout
 disapprover review contract.pdf -p exec --exec "python my_model.py"
 
@@ -32,7 +36,9 @@ disapprover review contract.pdf -p exec --exec "python my_model.py"
 disapprover review contract.pdf -m llama3.1 -r rules.txt -o reviews/contract.json --commit --fail-on-disapprove
 ```
 
-You can also set the global flags with environment variables: `DISAPPROVER_PROVIDER`, `DISAPPROVER_ENDPOINT`, `DISAPPROVER_MODEL`, `DISAPPROVER_API_KEY` and `DISAPPROVER_EXEC`.
+You can also set the global flags with environment variables: `DISAPPROVER_PROVIDER`, `DISAPPROVER_ENDPOINT`, `DISAPPROVER_MODEL`, `DISAPPROVER_API_KEY`, `DISAPPROVER_EXEC` and `DISAPPROVER_REASONING_EFFORT`.
+
+`--reasoning-effort` (none, low, medium or high) is sent as `reasoning_effort` to OpenAI-compatible servers that support it. If it isn't set, the server's default applies. Any `</think>` text that leaks into a reply is removed before the JSON is read.
 
 Exit codes: `0` means OK, `1` means an error, and `2` means disapproved (only with `--fail-on-disapprove`).
 

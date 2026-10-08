@@ -42,6 +42,9 @@ type Config struct {
 	APIKey   string
 	Command  []string // used by the exec provider
 	Timeout  time.Duration
+	// ReasoningEffort is sent as reasoning_effort by the openai provider when
+	// set (e.g. none|low|medium|high); empty leaves the server default.
+	ReasoningEffort string
 }
 
 // Factory builds a Client from Config.

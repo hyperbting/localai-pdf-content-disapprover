@@ -14,6 +14,7 @@ func TestParseVerdict(t *testing.T) {
 		`{"verdict":"approve","findings":[]}`:                              Approve,
 		"```json\n{\"verdict\":\"Disapprove\",\"findings\":[]}\n```":       Disapprove,
 		`Sure! {"verdict":"?","findings":[{"page":1,"reason":"x"}]} done.`: Disapprove,
+		"<think>maybe {not json}</think>\n{\"verdict\":\"approve\"}":       Approve,
 	}
 	for in, want := range cases {
 		v, err := ParseVerdict(in)
