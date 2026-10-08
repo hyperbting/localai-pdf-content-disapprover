@@ -37,6 +37,9 @@ disapprover review contract.pdf -p openai -e http://127.0.0.1:8080/v1 -m qwen --
 # Any program: the prompt goes in on stdin and the reply comes out on stdout
 disapprover review contract.pdf -p exec --exec "python my_model.py"
 
+# Paths with spaces: --exec is the program as given, and each --exec-arg is passed unchanged
+disapprover review contract.pdf -p exec --exec "C:\Program Files\llama\llama-cli.exe" --exec-arg -m --exec-arg "D:\my models\qwen.gguf"
+
 # Custom rules, save the report, commit it, and fail CI on a disapprove verdict
 disapprover review contract.pdf -m llama3.1 -r rules.txt -o reviews/contract.json --commit --fail-on-disapprove
 ```
@@ -103,4 +106,4 @@ internal/store/      writing files and git commits
 ## Limitations
 
 - Scanned PDFs that contain only images have no text to extract. Run OCR on them first.
-- `--exec` splits the command on whitespace, so put complex commands in a script.
+- Without `--exec-arg`, `--exec` is split on whitespace unless it names an existing file. Use `--exec-arg` for arguments with spaces; shell features such as pipes need a script.

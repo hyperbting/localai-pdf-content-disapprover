@@ -65,6 +65,9 @@ disapprover review contract.pdf -p openai -e http://127.0.0.1:8080/v1 -m qwen --
 # 任何程式
 disapprover review contract.pdf -p exec --exec "python my_model.py"
 
+# 路徑含空白：--exec 視為完整程式路徑，每個 --exec-arg 原樣傳入
+disapprover review contract.pdf -p exec --exec "C:\Program Files\llama\llama-cli.exe" --exec-arg -m --exec-arg "D:\my models\qwen.gguf"
+
 # 自訂規則、儲存報告、commit，並在駁回時讓 CI 失敗
 disapprover review contract.pdf -m llama3.1 -r rules.txt -o reviews/contract.json --commit --fail-on-disapprove
 ```
@@ -158,4 +161,4 @@ internal/store/      寫入檔案與 git commit
 ## 限制
 
 - 只含圖片的掃描 PDF 無法擷取文字，請先做 OCR。
-- `--exec` 以空白切割指令，複雜的指令請包成腳本。
+- 未使用 `--exec-arg` 時，`--exec` 會以空白切割，除非它指向一個存在的檔案。含空白的參數請用 `--exec-arg`；管線等 shell 功能請包成腳本。
